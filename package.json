@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "build": "wasm-pack build --target web --out-dir ../dist/wasm ./client && npm run build:minify",
-    "build:minify": "esbuild --minify --keep-names init.ts --outfile=dist/wasm/init.min.js",
+    "build": "wasm-pack build --target web --out-dir ../dist/wasm ./client && npm run build:ts",
+    "build:ts": "esbuild --bundle=true --minify --format=esm init.ts --outfile=dist/wasm/init.min.js",
     "start": "npm run build && cargo run"
   },
   "devDependencies": {

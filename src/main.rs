@@ -1,20 +1,21 @@
 use app::sycamore::render_to_string;
 use axum::{
-    http::{self, StatusCode},
-    response::{self, Html, IntoResponse, Response},
-    routing::get,
+    http::StatusCode,
+    response::{Html, IntoResponse},
+    routing::{get, get_service},
     Router,
 };
-use macros::try_include_str;
 use std::net::SocketAddr;
+use tower_http::services::ServeFile;
 
 const TEMPLATE: &str = include_str!("../index.html");
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new()
-        .route("/", get(handler))
-        .route("/client_bg.wasm", get(wasm));
+    let app = Router::new().route("/", get(handler)).route(
+        "/client_bg.wasm",
+        get_service(ServeFile::new("dist/wasm/client_bg.wasm")).handle_error(handle_error),
+    );
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
@@ -33,10 +34,12 @@ async fn handler() -> Html<String> {
                 "%app.script%",
                 &format!(
                     "<script type=\"module\">{}</script>",
-                    try_include_str!("dist/wasm/init.min.js")
+                    include_str!("../dist/wasm/init.min.js")
                 ),
             ),
     )
 }
 
-async fn wasm() -> Response<()> {}
+async fn handle_error(_err: std::io::Error) -> impl IntoResponse {
+    (StatusCode::INTERNAL_SERVER_ERROR, "Something went wrong...")
+}
