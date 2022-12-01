@@ -1,4 +1,4 @@
-use app::sycamore::render_to_string;
+use app::{sycamore::render_to_string, AppProps};
 use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
@@ -27,15 +27,24 @@ async fn main() {
 }
 
 async fn handler() -> Html<String> {
+    let props = AppProps { count: 50 };
+
     Html(
         TEMPLATE
-            .replace("%app.root%", &render_to_string(|cx| app::App(cx)))
             .replace(
                 "%app.script%",
                 &format!(
                     "<script type=\"module\">{}</script>",
                     include_str!("../dist/wasm/init.min.js")
                 ),
+            )
+            .replace(
+                "%app.props%",
+                &base64::encode(postcard::to_stdvec(&props).unwrap_or_else(|_| Vec::new())),
+            )
+            .replace(
+                "%app.root%",
+                &render_to_string(|cx| app::App(cx, props.clone())),
             ),
     )
 }

@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 sycamore = { version = "0.8.0", features = ["ssr", "hydrate", "suspense"] }
-macros = { path = "../macros" }
+serde = { workspace = true }
