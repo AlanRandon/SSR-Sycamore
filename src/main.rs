@@ -5,10 +5,24 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
+use lazy_static::lazy_static;
 use std::net::SocketAddr;
 use tower_http::services::ServeFile;
 
-const TEMPLATE: &str = include_str!("../index.html");
+lazy_static! {
+    static ref TEMPLATE: String = include_str!("../index.html")
+        .replace(
+            "%app.script%",
+            &format!(
+                "<script type=\"module\">{}</script>",
+                include_str!("../dist/wasm/init.min.js")
+            ),
+        )
+        .replace(
+            "%app.style%",
+            &format!("<style>{}</style>", include_str!("../dist/style.css")),
+        );
+}
 
 #[tokio::main]
 async fn main() {
@@ -32,20 +46,10 @@ async fn handler() -> Html<String> {
     Html(
         TEMPLATE
             .replace(
-                "%app.script%",
-                &format!(
-                    "<script type=\"module\">{}</script>",
-                    include_str!("../dist/wasm/init.min.js")
-                ),
-            )
-            .replace(
                 "%app.props%",
                 &base64::encode(postcard::to_stdvec(&props).unwrap_or_else(|_| Vec::new())),
             )
-            .replace(
-                "%app.root%",
-                &render_to_string(|cx| app::App(cx, props.clone())),
-            ),
+            .replace("%app.root%", &render_to_string(|cx| app::App(cx, props))),
     )
 }
 

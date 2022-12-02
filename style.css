@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    @apply w-full h-full m-0;
+  }
+
+  body {
+    @apply h-auto min-h-full w-full m-0 grid place-items-center;
+    background-image: radial-gradient(
+      circle at 25% 10%,
+      theme("colors.slate.600"),
+      theme("colors.slate.800")
+    );
+    background-position: fixed;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-color: theme("colors.slate.700");
+  }
+
+  * {
+    @apply box-border;
+  }
+}

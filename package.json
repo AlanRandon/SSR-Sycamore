@@ -1,11 +1,13 @@
 {
   "scripts": {
-    "build": "wasm-pack build --target web --out-dir ../dist/wasm ./client && npm run build:ts",
-    "build:ts": "esbuild --bundle=true --minify --format=esm init.ts --outfile=dist/wasm/init.min.js",
-    "start": "npm run build && cargo run"
+    "build:client": "wasm-pack build --target web --out-dir ../dist/wasm ./client && npm run build:client:ts",
+    "build:client:ts": "esbuild --bundle=true --minify --format=esm init.ts --outfile=dist/wasm/init.min.js",
+    "build:css": "tailwindcss -i ./style.css -c ./tailwind.config.js -o ./dist/style.css --minify",
+    "start": "npm run build:client && npm run build:css && cargo run"
   },
   "devDependencies": {
     "esbuild": "^0.15.16",
+    "tailwindcss": "^3.2.4",
     "wasm-pack": "^0.10.3"
   }
 }
