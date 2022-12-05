@@ -1,12 +1,16 @@
 use app::{sycamore::render_to_string, AppProps};
 use axum::{
+    extract::ws::{WebSocket, WebSocketUpgrade},
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
     routing::{get, get_service},
     Router,
 };
 use lazy_static::lazy_static;
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::atomic::{AtomicI64, Ordering},
+};
 use tower_http::services::ServeFile;
 
 lazy_static! {
@@ -24,12 +28,17 @@ lazy_static! {
         );
 }
 
+static COUNT: AtomicI64 = AtomicI64::new(0);
+
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/", get(handler)).route(
-        "/client_bg.wasm",
-        get_service(ServeFile::new("dist/wasm/client_bg.wasm")).handle_error(handle_error),
-    );
+    let app = Router::new()
+        .route("/", get(handler))
+        .route(
+            "/client_bg.wasm",
+            get_service(ServeFile::new("dist/wasm/client_bg.wasm")).handle_error(handle_error),
+        )
+        .route("/ws", get(handle_ws));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
@@ -41,7 +50,9 @@ async fn main() {
 }
 
 async fn handler() -> Html<String> {
-    let props = AppProps { count: 50 };
+    let props = AppProps {
+        count: COUNT.load(Ordering::SeqCst),
+    };
 
     Html(
         TEMPLATE
@@ -51,6 +62,10 @@ async fn handler() -> Html<String> {
             )
             .replace("%app.root%", &render_to_string(|cx| app::App(cx, props))),
     )
+}
+
+async fn handle_ws(ws: WebSocketUpgrade) -> Response {
+    ws.on_upgrade(|mut socket: WebSocket| async {})
 }
 
 async fn handle_error(_err: std::io::Error) -> impl IntoResponse {

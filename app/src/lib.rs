@@ -6,7 +6,7 @@ use sycamore::prelude::*;
 
 #[derive(Prop, Serialize, Deserialize, Clone, Debug, Copy)]
 pub struct AppProps {
-    pub count: i32,
+    pub count: i64,
 }
 
 #[component]
