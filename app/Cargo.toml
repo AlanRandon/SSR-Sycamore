@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 sycamore = { version = "0.8.0", features = ["ssr", "hydrate", "suspense"] }
 serde = { workspace = true }
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
+wasm-sockets = "1.0"
+log = { workspace = true }

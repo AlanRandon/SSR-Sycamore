@@ -7,6 +7,7 @@ use axum::{
     Router,
 };
 use lazy_static::lazy_static;
+use serde::Serialize;
 use std::{
     net::SocketAddr,
     sync::atomic::{AtomicI64, Ordering},
@@ -65,7 +66,20 @@ async fn handler() -> Html<String> {
 }
 
 async fn handle_ws(ws: WebSocketUpgrade) -> Response {
-    ws.on_upgrade(|mut socket: WebSocket| async {})
+    ws.on_upgrade(|mut socket: WebSocket| async move {
+        while let Some(message) = socket.recv().await {
+            let Ok(message) = message else {
+                // client disconnected
+                return;
+            };
+
+            dbg!(message);
+
+            // if socket.send(msg).await.is_err() {
+            //     return;
+            // }
+        }
+    })
 }
 
 async fn handle_error(_err: std::io::Error) -> impl IntoResponse {
