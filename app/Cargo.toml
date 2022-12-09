@@ -8,7 +8,11 @@ edition = "2021"
 [dependencies]
 sycamore = { version = "0.8.0", features = ["ssr", "hydrate", "suspense"] }
 serde = { workspace = true }
+postcard = { workspace = true }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 wasm-sockets = "1.0"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 log = { workspace = true }
+wasm-bindgen = { workspace = true }

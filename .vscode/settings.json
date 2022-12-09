@@ -1,0 +1,4 @@
+{
+  // for when target is web
+  "rust-analyzer.cargo.target": "wasm32-unknown-unknown"
+}

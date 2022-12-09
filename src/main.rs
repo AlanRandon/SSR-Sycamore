@@ -1,6 +1,6 @@
-use app::{sycamore::render_to_string, AppProps};
+use app::{sycamore::render_to_string, AppProps, ClientMessage, ServerMessage};
 use axum::{
-    extract::ws::{WebSocket, WebSocketUpgrade},
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, get_service},
@@ -12,6 +12,7 @@ use std::{
     net::SocketAddr,
     sync::atomic::{AtomicI64, Ordering},
 };
+use tokio::sync::Mutex;
 use tower_http::services::ServeFile;
 
 lazy_static! {
@@ -27,6 +28,7 @@ lazy_static! {
             "%app.style%",
             &format!("<style>{}</style>", include_str!("../dist/style.css")),
         );
+    static ref WEBSOCKETS: Mutex<Vec<WebSocket>> = Mutex::new(Vec::new());
 }
 
 static COUNT: AtomicI64 = AtomicI64::new(0);
@@ -42,6 +44,22 @@ async fn main() {
         .route("/ws", get(handle_ws));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
+
+    tokio::spawn(async {
+        let mut previous_count = COUNT.load(Ordering::SeqCst);
+        loop {
+            let current = COUNT.load(Ordering::SeqCst);
+            if previous_count != current {
+                previous_count = current;
+                let mut websockets = WEBSOCKETS.lock().await;
+                let data = postcard::to_stdvec(&ServerMessage::Set(current))
+                    .expect("Failed to serialize server message");
+                for websocket in websockets.iter_mut() {
+                    let _ = websocket.send(Message::Binary(data.clone())).await;
+                }
+            }
+        }
+    });
 
     println!("listening on {}", addr);
     axum::Server::bind(&addr)
@@ -73,11 +91,22 @@ async fn handle_ws(ws: WebSocketUpgrade) -> Response {
                 return;
             };
 
-            dbg!(message);
+            let Message::Binary(message) = message else {
+                continue;
+            };
 
-            // if socket.send(msg).await.is_err() {
-            //     return;
-            // }
+            let Ok(message) = postcard::from_bytes(&message) else {
+                continue;
+            };
+
+            match message {
+                ClientMessage::Increment => {
+                    COUNT.fetch_add(1, Ordering::SeqCst);
+                }
+                ClientMessage::Decrement => {
+                    COUNT.fetch_add(-1, Ordering::SeqCst);
+                }
+            }
         }
     })
 }

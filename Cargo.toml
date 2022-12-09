@@ -10,6 +10,7 @@ tokio = { version = "1.0", features = ["full"] }
 axum = { version = "0.6", features = ["ws"] }
 tower-http = { version = "0.3", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
+futures = "0.3"
 app = { path = "./app" }
 postcard = { workspace = true }
 base64 = { workspace = true }
@@ -22,6 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 base64 = "0.13"
 lazy_static = "1.4"
 log = "0.4"
+wasm-bindgen = "0.2"
 
 [workspace]
 members = [
