@@ -7,12 +7,11 @@ use axum::{
     Router,
 };
 use lazy_static::lazy_static;
-use serde::Serialize;
 use std::{
     net::SocketAddr,
     sync::atomic::{AtomicI64, Ordering},
 };
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tower_http::services::ServeFile;
 
 lazy_static! {
@@ -28,7 +27,7 @@ lazy_static! {
             "%app.style%",
             &format!("<style>{}</style>", include_str!("../dist/style.css")),
         );
-    static ref WEBSOCKETS: Mutex<Vec<WebSocket>> = Mutex::new(Vec::new());
+    static ref WEBSOCKETS: Mutex<Vec<mpsc::Sender<Message>>> = Mutex::new(Vec::new());
 }
 
 static COUNT: AtomicI64 = AtomicI64::new(0);
@@ -45,23 +44,7 @@ async fn main() {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
-    tokio::spawn(async {
-        let mut previous_count = COUNT.load(Ordering::SeqCst);
-        loop {
-            let current = COUNT.load(Ordering::SeqCst);
-            if previous_count != current {
-                previous_count = current;
-                let mut websockets = WEBSOCKETS.lock().await;
-                let data = postcard::to_stdvec(&ServerMessage::Set(current))
-                    .expect("Failed to serialize server message");
-                for websocket in websockets.iter_mut() {
-                    let _ = websocket.send(Message::Binary(data.clone())).await;
-                }
-            }
-        }
-    });
-
-    println!("listening on {}", addr);
+    println!("listening on https://{}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
@@ -85,28 +68,72 @@ async fn handler() -> Html<String> {
 
 async fn handle_ws(ws: WebSocketUpgrade) -> Response {
     ws.on_upgrade(|mut socket: WebSocket| async move {
-        while let Some(message) = socket.recv().await {
-            let Ok(message) = message else {
-                // client disconnected
-                return;
-            };
+        println!("New client connected");
 
-            let Message::Binary(message) = message else {
-                continue;
-            };
+        let (sender, mut reciever) = mpsc::channel(1);
 
-            let Ok(message) = postcard::from_bytes(&message) else {
-                continue;
-            };
+        let sender_index = {
+            let mut websockets = WEBSOCKETS.lock().await;
+            websockets.push(sender);
+            websockets.len() - 1
+        };
 
-            match message {
-                ClientMessage::Increment => {
-                    COUNT.fetch_add(1, Ordering::SeqCst);
+        loop {
+            tokio::select! {
+                // Server wants to send a message
+                message = reciever.recv() => {
+                    if let Some(message) = message {
+                        let _ = socket.send(message).await;
+                    }
                 }
-                ClientMessage::Decrement => {
-                    COUNT.fetch_add(-1, Ordering::SeqCst);
+                // Client sent a message
+                message = socket.recv() => 'a: {
+                    if let Some(message) = message {
+                        let Ok(message) = message else {
+                            // client disconnected
+                            let _ = socket.close().await;
+                            WEBSOCKETS.lock().await.remove(sender_index);
+                            return;
+                        };
+
+                        // If the client wants to be gone, make them gone.
+                        if let Message::Close(_) = message {
+                            let _ = socket.close().await;
+                            WEBSOCKETS.lock().await.remove(sender_index);
+                            println!("Client connection closed");
+                            return;
+                        }
+
+                        let Message::Binary(message) = message else {
+                            break 'a;
+                        };
+
+                        let Ok(message) = postcard::from_bytes(&message) else {
+                            break 'a;
+                        };
+
+                        match message {
+                            ClientMessage::Increment => {
+                                COUNT.fetch_add(1, Ordering::SeqCst);
+                            }
+                            ClientMessage::Decrement => {
+                                COUNT.fetch_add(-1, Ordering::SeqCst);
+                            }
+                        }
+
+                        let data =
+                            postcard::to_stdvec(&ServerMessage::Set(COUNT.load(Ordering::SeqCst)))
+                                .expect("Failed to serialize server message");
+
+                        // Send an update message to all clients
+                        for (index, sender) in WEBSOCKETS.lock().await.iter().enumerate() {
+                            if index != sender_index {
+                                let _ = sender.send(Message::Binary(data.clone())).await;
+                            }
+                        }
+                    }
                 }
-            }
+            };
         }
     })
 }

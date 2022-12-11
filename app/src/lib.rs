@@ -1,9 +1,9 @@
 #![warn(clippy::pedantic, clippy::nursery)]
 
 use serde::{Deserialize, Serialize};
-use std::{future::Future, rc::Rc};
+use std::{rc::Rc, sync::mpsc::channel};
 pub use sycamore;
-use sycamore::{futures, prelude::*, rt::Event, web};
+use sycamore::{futures, prelude::*, rt::Event};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 #[cfg(target_arch = "wasm32")]
@@ -27,6 +27,7 @@ pub enum ServerMessage {
 
 type EventCallback<'a> = Box<dyn 'a + FnMut(Event)>;
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 extern "C" {
     async fn sleep(delay: f32);
@@ -43,52 +44,60 @@ fn get_updates<'a>(
 
     #[cfg(target_arch = "wasm32")]
     {
-        let client = Rc::new(
-            wasm_sockets::PollingClient::new("ws://127.0.0.1:8080/ws")
-                .expect("Failed to connect to websocket"),
-        );
+        let mut client = wasm_sockets::PollingClient::new("ws://127.0.0.1:8080/ws")
+            .expect("Failed to connect to websocket");
 
         log::info!("Connected to websocket");
 
-        let mut reciever = Rc::clone(&client);
+        let (sender, reciever) = channel();
+        let sender = Rc::new(sender);
 
         futures::spawn_local_scoped(cx, async move {
             loop {
-                // for message in reciever.receive() {
-                //     let Message::Binary(data) = message else {
-                //         continue
-                //     };
+                for message in client.receive() {
+                    let Message::Binary(data) = message else {
+                        continue
+                    };
 
-                //     if let Ok(message) = postcard::from_bytes::<ServerMessage>(&data) {
-                //         log::info!("Recieved message from server: {:#?}", message);
-                //         match message {
-                //             ServerMessage::Set(value) => {
-                //                 count.set(value);
-                //             }
-                //         }
-                //     }
-                // }
+                    if let Ok(message) = postcard::from_bytes::<ServerMessage>(&data) {
+                        log::info!("Recieved message from server: {:#?}", message);
+                        match message {
+                            ServerMessage::Set(value) => {
+                                count.set(value);
+                            }
+                        }
+                    }
+                }
+
+                if let Ok(message) = reciever.try_recv() {
+                    client
+                        .send_binary(message)
+                        .unwrap_or_else(|_| log::error!("Failed to send message"));
+                }
+
                 sleep(100.0).await;
             }
         });
 
         let increment = {
-            let client = Rc::clone(&client);
+            let sender = Rc::clone(&sender);
             move |_| {
                 log::info!("Sending request to increment to server");
-                client
-                    .send_binary(postcard::to_stdvec(&ClientMessage::Increment).unwrap())
-                    .unwrap_or_else(|_| log::error!("WebSocket failed to send message"));
+                count.set(*count.get() + 1);
+                sender
+                    .send(postcard::to_stdvec(&ClientMessage::Increment).unwrap())
+                    .unwrap();
             }
         };
 
         let decrement = {
-            let client = Rc::clone(&client);
+            let sender = Rc::clone(&sender);
             move |_| {
                 log::info!("Sending request to decrement to server");
-                client
-                    .send_binary(postcard::to_stdvec(&ClientMessage::Decrement).unwrap())
-                    .unwrap_or_else(|_| log::error!("WebSocket failed to send message"));
+                count.set(*count.get() - 1);
+                sender
+                    .send(postcard::to_stdvec(&ClientMessage::Decrement).unwrap())
+                    .unwrap();
             }
         };
 
