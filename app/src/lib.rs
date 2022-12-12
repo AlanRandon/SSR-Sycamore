@@ -113,6 +113,7 @@ pub fn App<G: Html>(cx: Scope, props: AppProps) -> View<G> {
     let (increment, decrement) = get_updates(cx, count);
 
     view! { cx,
+        img(class="-z-10 inset-0 w-full absolute opacity-10 object-fit", src="/assets/color.webp")
         div(class="text-white/70 p-4 flex gap-4 items-center") {
             button(class="bg-slate-800 rounded shadow p-4 transition-colors hover:bg-slate-900", on:click=decrement) { "-" }
             p { "Count: " (count.get()) }

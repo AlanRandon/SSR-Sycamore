@@ -12,7 +12,7 @@ use std::{
     sync::atomic::{AtomicI64, Ordering},
 };
 use tokio::sync::{mpsc, Mutex};
-use tower_http::services::ServeFile;
+use tower_http::services::{ServeDir, ServeFile};
 
 lazy_static! {
     static ref TEMPLATE: String = include_str!("../index.html")
@@ -37,6 +37,10 @@ async fn main() {
     let app = Router::new()
         .route("/", get(handler))
         .route(
+            "/assets",
+            get_service(ServeDir::new("assets")).handle_error(handle_error),
+        )
+        .route(
             "/client_bg.wasm",
             get_service(ServeFile::new("dist/wasm/client_bg.wasm")).handle_error(handle_error),
         )
@@ -44,7 +48,7 @@ async fn main() {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
-    println!("listening on https://{}", addr);
+    println!("listening on http://{}", addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await
