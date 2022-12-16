@@ -114,9 +114,9 @@ pub fn App<G: Html>(cx: Scope, props: AppProps) -> View<G> {
 
     view! { cx,
         div(class="text-white/70 p-4 flex gap-4 items-center grow") {
-            button(class="bg-slate-800 rounded shadow p-4 transition transform hover:bg-slate-900 border-y-2 border-transparent hover:border-b-primary-500 box-content", on:click=decrement) { "-" }
+            button(class="bg-slate-800 rounded shadow p-4 transition transform hover:bg-slate-900 border-y-2 border-transparent hover:border-b-primary-500 hover:border-t-0 hover:border-b-2", on:click=decrement) { "-" }
             p { "Count: " (count.get()) }
-            button(class="bg-slate-800 rounded shadow p-4 transition transform hover:bg-slate-900 border-y-2 border-transparent hover:border-b-primary-500 box-content", on:click=increment) { "+" }
+            button(class="bg-slate-800 rounded shadow p-4 transition transform hover:bg-slate-900 border-y-2 border-transparent hover:border-b-primary-500 hover:border-t-0 hover:border-b-2", on:click=increment) { "+" }
         }
         footer(class="text-white/70 p-4 grid gap-4 bg-slate-800 w-full place-self-end") {
             p { "A Website" }
